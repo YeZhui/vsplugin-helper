@@ -27,14 +27,26 @@ function checkGitStatus() {
 
 // 读取Open VSX token
 function getOVSXToken() {
-    const tokenPath = path.join(process.env.USERPROFILE || process.env.HOME, '.ovsx', 'token');
+    // 首先尝试从项目根目录读取token
+    const projectTokenPath = path.join(process.cwd(), '.ovsx', 'token');
     try {
-        if (fs.existsSync(tokenPath)) {
-            return fs.readFileSync(tokenPath, 'utf8').trim();
+        if (fs.existsSync(projectTokenPath)) {
+            return fs.readFileSync(projectTokenPath, 'utf8').trim();
         }
     } catch (error) {
-        console.error('无法读取Open VSX token文件');
+        console.error('无法读取项目目录下的Open VSX token文件');
     }
+
+    // 如果项目目录下没有token，尝试从用户目录读取
+    const userTokenPath = path.join(process.env.USERPROFILE || process.env.HOME, '.ovsx', 'token');
+    try {
+        if (fs.existsSync(userTokenPath)) {
+            return fs.readFileSync(userTokenPath, 'utf8').trim();
+        }
+    } catch (error) {
+        console.error('无法读取用户目录下的Open VSX token文件');
+    }
+
     return process.env.OVSX_TOKEN;
 }
 
