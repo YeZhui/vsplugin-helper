@@ -1,8 +1,8 @@
 {
   "name": "vsplugin-helper",
   "displayName": "VSPlugin Helper",
-  "version": "0.0.1",
-  "description": "一个用于在TraeIDE中自动下载和安装VSCode官方插件市场插件的插件",
+  "version": "0.0.2",
+  "description": "A plugin for automatically downloading and installing VSCode official marketplace plugins in Trae or Trae CN",
   "publisher": "YeZhui",
   "engines": {
     "vscode": "^1.60.0"
