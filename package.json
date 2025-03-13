@@ -3,7 +3,7 @@
   "displayName": "VSPlugin Helper",
   "version": "0.0.1",
   "description": "一个用于在TraeIDE中自动下载和安装VSCode官方插件市场插件的插件",
-  "publisher": "trae-extension",
+  "publisher": "YeZhui",
   "engines": {
     "vscode": "^1.60.0"
   },

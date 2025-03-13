@@ -11,20 +11,6 @@ function validateVersion(version) {
     return versionRegex.test(version);
 }
 
-// 检查是否有未提交的更改
-function checkGitStatus() {
-    try {
-        const status = execSync('git status --porcelain').toString();
-        if (status) {
-            console.error('错误：有未提交的更改，请先提交或存储更改。');
-            process.exit(1);
-        }
-    } catch (error) {
-        console.error('错误：无法检查git状态。', error.message);
-        process.exit(1);
-    }
-}
-
 // 读取Open VSX token
 function getOVSXToken() {
     // 首先尝试从项目根目录读取token
@@ -59,9 +45,6 @@ async function publish() {
         process.exit(1);
     }
 
-    // 检查git状态
-    checkGitStatus();
-
     // 获取Open VSX token
     const token = getOVSXToken();
     if (!token) {
@@ -76,13 +59,7 @@ async function publish() {
 
         // 发布到Open VSX
         console.log('正在发布到Open VSX...');
-        process.env.OVSX_TOKEN = token;
-        execSync('npm run ovsx:publish', { stdio: 'inherit' });
-
-        // 创建git标签
-        console.log(`正在创建git标签 v${packageJson.version}...`);
-        execSync(`git tag -a v${packageJson.version} -m "Release ${packageJson.version}"`);
-        execSync('git push --tags');
+        execSync('npx ovsx publish --pat ' + token, { stdio: 'inherit' });
 
         console.log('\n✨ 发布成功！');
         console.log(`版本: ${packageJson.version}`);
