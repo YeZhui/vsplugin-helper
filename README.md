@@ -5,6 +5,7 @@ VSPlugin Helper is a powerful extension designed for TraeIDE that enables automa
 ## Features
 
 - **One-Click Installation**: Easily install VSCode plugins directly from the official marketplace
+- **Remote Installation**: Support installing plugins on remote hosts
 - **Proxy Support**: Built-in proxy support for users in regions with limited access
 - **Automatic Retry**: Robust retry mechanism for reliable downloads
 - **Detailed Logging**: Comprehensive logging system for troubleshooting
@@ -18,10 +19,17 @@ VSPlugin Helper is a powerful extension designed for TraeIDE that enables automa
 
 ## Usage
 
+### Local Installation
 1. Open the command palette (Ctrl+Shift+P)
 2. Type and select "安装VSCode插件"
 3. Enter the plugin ID (e.g., "ms-python.python")
 4. Wait for the installation to complete
+
+### Remote Installation
+1. Open the command palette (Ctrl+Shift+P)
+2. Type and select "安装VSCode插件(远程)"
+3. Enter the plugin ID (e.g., "ms-python.python")
+4. Wait for the installation to complete on the remote host
 
 ## Configuration
 
@@ -54,3 +62,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Support
 
 If you encounter any issues or have suggestions, please feel free to contact us via email at guanyezhui@163.com.
+
+## Changes
+
+### 0.0.5
+- Added support for installing plugins on remote hosts
+- Added new command "安装VSCode插件(远程)" for remote installation

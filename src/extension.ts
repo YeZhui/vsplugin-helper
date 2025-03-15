@@ -26,6 +26,14 @@ function logToFile(message: string) {
     fs.appendFileSync(logFile, logMessage);
 }
 
+// 检查是否支持远程安装
+async function checkRemoteSupport() {
+    if (!vscode.env.remoteName) {
+        throw new Error('请先使用SSH Remote插件连接到远程主机');
+    }
+    return true;
+}
+
 export async function activate(context: vscode.ExtensionContext) {
     // 添加配置变更监听
     context.subscriptions.push(
@@ -36,6 +44,7 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // 注册插件安装命令
     let disposable = vscode.commands.registerCommand('vsplugin-helper.installPlugin', async () => {
         try {
             // 获取用户输入的插件ID
@@ -90,8 +99,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
 
             // 解析HTML获取最新版本号
-            const versionMatch = response.data.match(/"VersionValue":"([^"]+)"/);
-            if (!versionMatch) {
+            const versionMatch = response.data.match(/"VersionValue":"([^"]+)"/);            if (!versionMatch) {
                 throw new Error('无法获取插件版本信息');
             }
 
@@ -128,13 +136,21 @@ export async function activate(context: vscode.ExtensionContext) {
                 // 获取trae安装目录，优先使用配置项
                 const config = vscode.workspace.getConfiguration('vsplugin-helper');
                 const configTraePath = config.get<string>('traePath');
-                const traeInstallPath = configTraePath || process.env.TRAE_HOME;
+                const isRemote = vscode.env.remoteName !== undefined;
+                let traeInstallPath = configTraePath || process.env.TRAE_HOME;
 
-                if (!traeInstallPath) {
+                // 在远程环境下，如果未配置traePath，则使用当前工作目录
+                if (isRemote && !traeInstallPath) {
+                    traeInstallPath = process.cwd();
+                    logToFile('远程环境下使用当前工作目录作为Trae安装目录');
+                } else if (!traeInstallPath) {
                     throw new Error('未找到Trae安装路径，请在设置中配置或设置TRAE_HOME环境变量');
                 }
 
                 logToFile(`使用Trae安装目录: ${traeInstallPath}`);
+
+                // 检查是否在远程环境中
+                logToFile(`当前环境: ${isRemote ? '远程' : '本地'}`);
 
                 // 保存当前工作目录
                 const currentDir = process.cwd();
@@ -144,8 +160,13 @@ export async function activate(context: vscode.ExtensionContext) {
                 process.chdir(traeBinPath);
                 logToFile(`切换到Trae bin目录: ${traeBinPath}`);
 
+                // 根据环境选择安装命令
+                const installCommand = isRemote ? 
+                    `trae --install-extension "${vsixPath}" --remote` :
+                    `trae --install-extension "${vsixPath}"`;
+
                 // 执行trae命令安装插件
-                const { stdout, stderr } = await execAsync(`trae --install-extension "${vsixPath}"`);
+                const { stdout, stderr } = await execAsync(installCommand);
                 logToFile(`安装命令输出: ${stdout}`);
                 
                 // 切换回原来的目录
@@ -177,6 +198,126 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     context.subscriptions.push(disposable);
+
+    // 注册远程安装命令
+    let remoteDisposable = vscode.commands.registerCommand('vsplugin-helper.installRemotePlugin', async () => {
+        try {
+            // 检查远程支持
+            await checkRemoteSupport();
+
+            // 获取用户输入的插件ID
+            const pluginId = await vscode.window.showInputBox({
+                placeHolder: '请输入VSCode插件的ID（例如：ms-python.python）',
+                prompt: '输入插件ID'
+            });
+
+            if (!pluginId) {
+                return;
+            }
+
+            logToFile(`开始远程安装插件: ${pluginId}`);
+            vscode.window.showInformationMessage(`开始远程安装插件: ${pluginId}`);
+
+            // 从VSCode市场获取插件信息
+            vscode.window.showInformationMessage('正在从VSCode市场获取插件信息...');
+            const marketplaceUrl = `https://marketplace.visualstudio.com/items?itemName=${pluginId}`;
+            logToFile(`正在获取插件信息，URL: ${marketplaceUrl}`);
+
+            const axiosInstance = axios.create({
+                timeout: 30000,
+                proxy: process.env.HTTP_PROXY || process.env.HTTPS_PROXY ? {
+                    protocol: 'http',
+                    host: process.env.HTTP_PROXY?.split('://')[1]?.split(':')[0] || process.env.HTTPS_PROXY?.split('://')[1]?.split(':')[0] || '',
+                    port: parseInt(process.env.HTTP_PROXY?.split(':').pop() || process.env.HTTPS_PROXY?.split(':').pop() || '0')
+                } : null,
+                maxRetries: 3,
+                retryDelay: 1000
+            });
+
+            const response = await axiosInstance.get(marketplaceUrl);
+
+            if (!response.data) {
+                throw new Error('未找到插件');
+            }
+
+            // 解析HTML获取最新版本号
+            const versionMatch = response.data.match(/"VersionValue":"([^"]+)"/);
+            if (!versionMatch) {
+                throw new Error('无法获取插件版本信息');
+            }
+
+            const latestVersion = versionMatch[1];
+            const [publisher, extensionName] = pluginId.split('.');
+            
+            logToFile(`获取到插件版本: ${latestVersion}`);
+
+            // 构建下载URL
+            const vsixUrl = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${extensionName}/${latestVersion}/vspackage`;
+            logToFile(`插件下载URL: ${vsixUrl}`);
+
+            vscode.window.showInformationMessage('正在下载插件...');
+
+            // 下载插件
+            const vsixResponse = await axiosInstance.get(vsixUrl, { responseType: 'arraybuffer' });
+            const tempDir = path.join(os.tmpdir(), 'vsplugin-helper');
+            const vsixPath = path.join(tempDir, `${pluginId}.vsix`);
+
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+
+            fs.writeFileSync(vsixPath, vsixResponse.data);
+            logToFile(`插件文件已保存到: ${vsixPath}`);
+
+            vscode.window.showInformationMessage('正在远程安装插件...');
+
+            try {
+                // 获取或创建终端
+                let terminal = vscode.window.activeTerminal;
+                if (!terminal) {
+                    terminal = vscode.window.createTerminal('VSPlugin Helper');
+                    terminal.show();
+                    // 等待终端初始化
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+                // 在远程主机上创建临时目录
+                const remoteDir = '/tmp/vsplugin-helper';
+                terminal.sendText(`mkdir -p ${remoteDir}`);
+
+                // 使用VSCode的远程文件系统API复制文件
+                const remoteVsixPath = path.posix.join(remoteDir, `${pluginId}.vsix`);
+                const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(vsixPath));
+                await vscode.workspace.fs.writeFile(
+                    vscode.Uri.parse(`vscode-remote://${vscode.env.remoteName}${remoteVsixPath}`),
+                    fileContent
+                );
+
+                // 在远程主机上执行安装命令
+                terminal.sendText(`trae --install-extension "${remoteVsixPath}"`);
+                terminal.sendText(`rm -f "${remoteVsixPath}"`);
+
+                // 清理本地临时文件
+                fs.unlinkSync(vsixPath);
+                logToFile(`安装成功，已清理临时文件: ${vsixPath}`);
+
+                vscode.window.showInformationMessage(`插件 ${pluginId} 远程安装成功！`);
+                logToFile(`插件 ${pluginId} 远程安装完成`);
+            } catch (error) {
+                if (fs.existsSync(vsixPath)) {
+                    fs.unlinkSync(vsixPath);
+                    logToFile(`安装失败，已清理临时文件: ${vsixPath}`);
+                }
+                logToFile(`安装失败: ${error.message}`);
+                throw new Error(`插件远程安装失败: ${error.message}`);
+            }
+        } catch (error) {
+            logToFile(`发生错误: ${error.message}`);
+            vscode.window.showErrorMessage(`远程安装插件失败: ${error.message}`);
+        }
+    });
+
+    context.subscriptions.push(remoteDisposable);
 }
 
 export function deactivate() {}

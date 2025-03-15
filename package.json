@@ -1,17 +1,20 @@
 {
   "name": "vsplugin-helper",
   "displayName": "VSPlugin Helper",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "description": "A plugin for automatically downloading and installing VSCode official marketplace plugins in Trae or Trae CN",
   "publisher": "YeZhui",
   "engines": {
     "vscode": "^1.60.0"
   },
+  "extensionKind": ["ui"],
   "categories": [
     "Other"
   ],
   "activationEvents": [
-    "onCommand:vsplugin-helper.installPlugin"
+    "onCommand:vsplugin-helper.installPlugin",
+    "onCommand:vsplugin-helper.installRemotePlugin",
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -19,6 +22,10 @@
       {
         "command": "vsplugin-helper.installPlugin",
         "title": "安装VSCode插件"
+      },
+      {
+        "command": "vsplugin-helper.installRemotePlugin",
+        "title": "安装VSCode插件(远程)"
       }
     ],
     "configuration": {
@@ -38,7 +45,8 @@
     "package": "node ./esbuild.js --minify",
     "watch": "node ./esbuild.js --watch",
     "ovsx:publish": "ovsx publish",
-    "publish": "node ./scripts/publish.js"
+    "publish": "node ./scripts/publish.js",
+    "build": "node ./scripts/publish.js --build-only"
   },
   "devDependencies": {
     "@types/node": "^16.11.7",
