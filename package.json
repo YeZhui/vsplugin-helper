@@ -1,7 +1,8 @@
 {
   "name": "vsplugin-helper",
   "displayName": "VSPlugin Helper",
-  "version": "0.0.5",
+  "version": "0.0.6",
+  "icon": "resources/icon.png",
   "description": "A plugin for automatically downloading and installing VSCode official marketplace plugins in Trae or Trae CN",
   "publisher": "YeZhui",
   "engines": {

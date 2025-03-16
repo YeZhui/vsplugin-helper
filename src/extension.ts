@@ -272,34 +272,50 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage('正在远程安装插件...');
 
             try {
-                // 获取或创建终端
-                let terminal = vscode.window.activeTerminal;
-                if (!terminal) {
-                    terminal = vscode.window.createTerminal('VSPlugin Helper');
-                    terminal.show();
-                    // 等待终端初始化
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
+                // 创建隐藏终端
+                let terminal = vscode.window.createTerminal({
+                    name: 'VSPlugin Helper',
+                    hideFromUser: true
+                });
 
-                // 在远程主机上创建临时目录
-                const remoteDir = '/tmp/vsplugin-helper';
-                terminal.sendText(`mkdir -p ${remoteDir}`);
+                // 使用进度提示
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: `正在安装插件 ${pluginId}`,
+                    cancellable: false
+                }, async (progress) => {
+                    progress.report({ message: '准备安装环境...' });
+                    
+                    // 在远程主机上创建临时目录
+                    const remoteDir = '/tmp/vsplugin-helper';
+                    terminal.sendText(`mkdir -p ${remoteDir}`);
+                    await new Promise(resolve => setTimeout(resolve, 500));
 
-                // 使用VSCode的远程文件系统API复制文件
-                const remoteVsixPath = path.posix.join(remoteDir, `${pluginId}.vsix`);
-                const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(vsixPath));
-                await vscode.workspace.fs.writeFile(
-                    vscode.Uri.parse(`vscode-remote://${vscode.env.remoteName}${remoteVsixPath}`),
-                    fileContent
-                );
+                    progress.report({ message: '传输插件文件...' });
+                    // 使用VSCode的远程文件系统API复制文件
+                    const remoteVsixPath = path.posix.join(remoteDir, `${pluginId}.vsix`);
+                    const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(vsixPath));
+                    await vscode.workspace.fs.writeFile(
+                        vscode.Uri.parse(`vscode-remote://${vscode.env.remoteName}${remoteVsixPath}`),
+                        fileContent
+                    );
 
-                // 在远程主机上执行安装命令
-                terminal.sendText(`trae --install-extension "${remoteVsixPath}"`);
-                terminal.sendText(`rm -f "${remoteVsixPath}"`);
+                    progress.report({ message: '执行安装...' });
+                    // 在远程主机上执行安装命令
+                    terminal.sendText(`trae --install-extension "${remoteVsixPath}"`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    progress.report({ message: '清理临时文件...' });
+                    terminal.sendText(`rm -f "${remoteVsixPath}"`);
+                    await new Promise(resolve => setTimeout(resolve, 500));
 
-                // 清理本地临时文件
-                fs.unlinkSync(vsixPath);
-                logToFile(`安装成功，已清理临时文件: ${vsixPath}`);
+                    // 清理本地临时文件
+                    fs.unlinkSync(vsixPath);
+                    logToFile(`安装成功，已清理临时文件: ${vsixPath}`);
+
+                    // 关闭终端
+                    terminal.dispose();
+                });
 
                 vscode.window.showInformationMessage(`插件 ${pluginId} 远程安装成功！`);
                 logToFile(`插件 ${pluginId} 远程安装完成`);
